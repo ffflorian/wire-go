@@ -19,6 +19,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/ffflorian/wire-go/apiclient"
 	"github.com/simonleung8/flags"
@@ -27,9 +28,33 @@ import (
 func main() {
 	flagContext := flags.New()
 
+	flagContext.NewStringFlag("email", "e", "email")
+	flagContext.NewStringFlag("backend", "b", "backend")
+	flagContext.NewStringFlag("password", "p", "password")
+
+	parseError := flagContext.Parse(os.Args...)
+	if parseError != nil {
+		fmt.Printf("Flag parse error: %s\n", parseError)
+	}
+
 	email := flagContext.String("e")
 	backend := flagContext.String("b")
 	password := flagContext.String("p")
+
+	if email == "" {
+		fmt.Println("No email set.")
+		os.Exit(1)
+	}
+
+	if backend == "" {
+		fmt.Println("No backend set.")
+		os.Exit(1)
+	}
+
+	if password == "" {
+		fmt.Println("No password set.")
+		os.Exit(1)
+	}
 
 	// fmt.Println("Deleting all clients ...")
 	fmt.Println("Logging in ...")
@@ -38,6 +63,13 @@ func main() {
 
 	_, loginError := client.Login(false)
 	if loginError != nil {
-		fmt.Printf("Login error: %s", loginError)
+		fmt.Printf("Login error: %s\n", loginError)
+	}
+}
+
+func checkError(err error) {
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Error:", err)
+		os.Exit(1)
 	}
 }
