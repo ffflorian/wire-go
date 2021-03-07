@@ -34,34 +34,57 @@ import (
 // APIClient is a configuration struct for the APIClient
 type APIClient struct {
 	Backend  string
+	Cookies  []*http.Cookie
 	Email    string
 	Password string
 	Timeout  int
 }
 
+// TokenData defines the data returned from the server after logging in
+type TokenData struct {
+	ExpiresIn   int    `json:"expires_in"`
+	AccessToken string `json:"access_token"`
+	UserID      string `json:"user"`
+	TokenType   string `json:"token_type"`
+}
+
+// LoginData defines the data sent ton the server to log in
 type LoginData struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
 }
 
-const (
-	CLIENTS = "clients"
-	LOGIN   = "login"
-)
+type backendPaths struct {
+	CLIENTS string
+	LOGIN   string
+}
 
-const (
-	GET    = "GET"
-	POST   = "POST"
-	DELETE = "DELETE"
-)
+var paths = &backendPaths{
+	CLIENTS: "clients",
+	LOGIN:   "login",
+}
+
+type httpMethods struct {
+	GET    string
+	POST   string
+	DELETE string
+}
+
+var methods = &httpMethods{
+	GET:    "GET",
+	POST:   "POST",
+	DELETE: "DELETE",
+}
 
 // New returns a new instance of APIClient
 func New(backend string, email string, password string, timeout int) *APIClient {
 	pat := regexp.MustCompile(`https?://`)
 	backendWithoutProtocol := pat.ReplaceAllString(backend, "")
+	var cookies []*http.Cookie
 
 	return &APIClient{
 		Backend:  backendWithoutProtocol,
+		Cookies:  cookies,
 		Email:    email,
 		Password: password,
 		Timeout:  timeout,
@@ -70,9 +93,9 @@ func New(backend string, email string, password string, timeout int) *APIClient 
 
 // DeleteClient deletes a client of a user
 func (apiClient *APIClient) DeleteClient(clientID string) error {
-	urlPath := apiClient.buildURL(CLIENTS)
+	urlPath := apiClient.buildURL(paths.CLIENTS)
 
-	_, requestError := apiClient.request(DELETE, urlPath, nil)
+	_, requestError := apiClient.request(methods.DELETE, urlPath, nil)
 	if requestError != nil {
 		return requestError
 	}
@@ -82,9 +105,9 @@ func (apiClient *APIClient) DeleteClient(clientID string) error {
 
 // GetClients gets all clients of a user
 func (apiClient *APIClient) GetClients(clientID string) (*[]byte, error) {
-	urlPath := apiClient.buildURL(CLIENTS, clientID)
+	urlPath := apiClient.buildURL(paths.CLIENTS, clientID)
 
-	clients, requestError := apiClient.request(GET, urlPath, nil)
+	clients, requestError := apiClient.request(methods.GET, urlPath, nil)
 	if requestError != nil {
 		return nil, requestError
 	}
@@ -93,8 +116,8 @@ func (apiClient *APIClient) GetClients(clientID string) (*[]byte, error) {
 }
 
 // Login logs the user in
-func (apiClient *APIClient) Login(permanent bool) (*[]byte, error) {
-	urlPath := apiClient.buildURL(LOGIN)
+func (apiClient *APIClient) Login(permanent bool) (*TokenData, error) {
+	urlPath := apiClient.buildURL(paths.LOGIN)
 	loginData := &LoginData{
 		Email:    apiClient.Email,
 		Password: apiClient.Password,
@@ -102,14 +125,21 @@ func (apiClient *APIClient) Login(permanent bool) (*[]byte, error) {
 	payloadBuf := new(bytes.Buffer)
 	json.NewEncoder(payloadBuf).Encode(loginData)
 
-	data, requestError := apiClient.request(POST, urlPath, payloadBuf)
+	data, requestError := apiClient.request(methods.POST, urlPath, payloadBuf)
 	if requestError != nil {
 		return nil, requestError
 	}
 
 	fmt.Printf("Received data from server: %s\n", data)
 
-	return data, nil
+	var tokenData *TokenData
+
+	unmarshalError := json.Unmarshal(*data, &tokenData)
+	if unmarshalError != nil {
+		return nil, unmarshalError
+	}
+
+	return tokenData, nil
 }
 
 func (apiClient *APIClient) buildURL(fragments ...string) string {
@@ -122,6 +152,11 @@ func (apiClient *APIClient) request(method string, urlPath string, payload io.Re
 	timeout := time.Duration(apiClient.Timeout) * time.Millisecond
 	request, _ := http.NewRequest(method, urlPath, payload)
 	request.Header.Set("Content-Type", "application/json")
+
+	for _, cookie := range apiClient.Cookies {
+		fmt.Printf("Setting a cookie named \"%s\"\n", cookie.Name)
+		request.AddCookie(cookie)
+	}
 
 	client := &http.Client{Timeout: timeout}
 	fmt.Printf("Sending %s request to \"%s\" with timeout \"%s\" ...\n", request.Method, urlPath, timeout)
@@ -138,6 +173,12 @@ func (apiClient *APIClient) request(method string, urlPath string, payload io.Re
 	if response.StatusCode != 200 {
 		return nil, errors.New("Invalid response status code")
 	}
+
+	for _, cookie := range response.Cookies() {
+		fmt.Printf("Found a cookie named \"%s\"\n", cookie.Name)
+	}
+
+	apiClient.Cookies = response.Cookies()
 
 	buffer, readError := ioutil.ReadAll(response.Body)
 	if readError != nil {
