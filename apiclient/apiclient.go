@@ -40,7 +40,7 @@ type APIClient struct {
 	Timeout  int
 }
 
-// TokenData defines the data returned from the server after logging in
+// TokenData defines the data returned by the server after logging in
 type TokenData struct {
 	ExpiresIn   int    `json:"expires_in"`
 	AccessToken string `json:"access_token"`
@@ -48,20 +48,63 @@ type TokenData struct {
 	TokenType   string `json:"token_type"`
 }
 
-// LoginData defines the data sent ton the server to log in
+// LoginData defines the data sent to the server to log in
 type LoginData struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
 }
 
+type ClientClassification struct {
+	DESKTOP    string
+	LEGAL_HOLD string
+	PHONE      string
+	TABLET     string
+}
+
+type PublicClient struct {
+	Class ClientClassification `json:"class"`
+	ID    string               `json:"id"`
+}
+
+type ClientType struct {
+	PERMANENT string
+	TEMPORARY string
+}
+
+type Location struct {
+	lat int
+	lon int
+}
+
+// AddedClient defines the data returned by the server when getting a client
+type AddedClient struct {
+	PublicClient
+	/** The IP address from which the client was registered */
+	Address  string   `json:"address"`
+	Label    string   `json:"label"`
+	Location Location `json:"location"`
+	Model    string   `json:"model"`
+	/** An ISO 8601 Date string */
+	Time string     `json:"time"`
+	Type ClientType `json:"type"`
+}
+
+type RegisteredClient struct {
+	AddedClient
+	/** The cookie label */
+	Cookie string `json:"cookie"`
+}
+
 type backendPaths struct {
 	CLIENTS string
 	LOGIN   string
+	USERS   string
 }
 
 var paths = &backendPaths{
 	CLIENTS: "clients",
 	LOGIN:   "login",
+	USERS:   "users",
 }
 
 type httpMethods struct {
@@ -76,7 +119,7 @@ var methods = &httpMethods{
 	DELETE: "DELETE",
 }
 
-// New returns a new instance of APIClient
+// New returns a new instance of the APIClient
 func New(backend string, email string, password string, timeout int) *APIClient {
 	pat := regexp.MustCompile(`https?://`)
 	backendWithoutProtocol := pat.ReplaceAllString(backend, "")
@@ -91,7 +134,7 @@ func New(backend string, email string, password string, timeout int) *APIClient 
 	}
 }
 
-// DeleteClient deletes a client of a user
+// DeleteClient deletes a client of the current user
 func (apiClient *APIClient) DeleteClient(clientID string) error {
 	urlPath := apiClient.buildURL(paths.CLIENTS)
 
@@ -103,13 +146,32 @@ func (apiClient *APIClient) DeleteClient(clientID string) error {
 	return nil
 }
 
-// GetClients gets all clients of a user
-func (apiClient *APIClient) GetClients(clientID string) (*[]byte, error) {
+// GetClient gets a clients of the current user
+func (apiClient *APIClient) GetClient(userID, clientID string) (*[]byte, error) {
 	urlPath := apiClient.buildURL(paths.CLIENTS, clientID)
 
 	clients, requestError := apiClient.request(methods.GET, urlPath, nil)
 	if requestError != nil {
 		return nil, requestError
+	}
+
+	return clients, nil
+}
+
+// GetAllClients gets all clients of the current user
+func (apiClient *APIClient) GetAllClients() (*[]RegisteredClient, error) {
+	urlPath := apiClient.buildURL(paths.CLIENTS)
+
+	data, requestError := apiClient.request(methods.GET, urlPath, nil)
+	if requestError != nil {
+		return nil, requestError
+	}
+
+	var clients *[]RegisteredClient
+
+	unmarshalError := json.Unmarshal(*data, &clients)
+	if unmarshalError != nil {
+		return nil, unmarshalError
 	}
 
 	return clients, nil

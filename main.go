@@ -61,10 +61,12 @@ func main() {
 
 	client := apiclient.New(backend, email, password, 10000)
 
-	_, loginError := client.Login(false)
+	loginData, loginError := client.Login(false)
 	if loginError != nil {
 		fmt.Printf("Login error: %s\n", loginError)
 	}
+
+	loginData.
 }
 
 func checkError(err error) {
