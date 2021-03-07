@@ -29,7 +29,7 @@ func main() {
 	flagContext := flags.New()
 
 	flagContext.NewStringFlag("email", "e", "email")
-	flagContext.NewStringFlag("backend", "b", "backend")
+	flagContext.NewStringFlag("backend", "b", "backend (default: \"staging-nginz-https.zinfra.io\"")
 	flagContext.NewStringFlag("password", "p", "password")
 
 	parseError := flagContext.Parse(os.Args...)

@@ -25,6 +25,8 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"net/url"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -55,8 +57,11 @@ const (
 
 // New returns a new instance of APIClient
 func New(backend string, email string, password string, timeout int) *APIClient {
+	pat := regexp.MustCompile(`https?://`)
+	backendWithoutProtocol := pat.ReplaceAllString(backend, "")
+
 	return &APIClient{
-		Backend:  backend,
+		Backend:  backendWithoutProtocol,
 		Email:    email,
 		Password: password,
 		Timeout:  timeout,
@@ -109,7 +114,8 @@ func (apiClient *APIClient) Login(permanent bool) (*[]byte, error) {
 
 func (apiClient *APIClient) buildURL(fragments ...string) string {
 	path := strings.Join(fragments, "/")
-	return fmt.Sprintf("https://%s/%s", apiClient.Backend, path)
+	URL := &url.URL{Scheme: "https", Host: apiClient.Backend, Path: path}
+	return URL.String()
 }
 
 func (apiClient *APIClient) request(method string, urlPath string, payload io.Reader) (*[]byte, error) {
