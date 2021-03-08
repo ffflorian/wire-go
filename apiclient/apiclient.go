@@ -29,6 +29,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ffflorian/go-tools/simplelogger"
 	"github.com/ffflorian/wire-go/util"
 )
 
@@ -38,6 +39,7 @@ type APIClient struct {
 	Backend     string
 	Cookie      *http.Cookie
 	Email       string
+	Logger      *simplelogger.SimpleLogger
 	Password    string
 	Timeout     int
 }
@@ -132,10 +134,15 @@ var methods = struct {
 	DELETE: "DELETE",
 }
 
+var (
+	utils = util.New("wire-go", "", "")
+)
+
 // New returns a new instance of the APIClient
 func New(backend, email, password string, timeout int) *APIClient {
-	pat := regexp.MustCompile(`https?://`)
-	backendWithoutProtocol := pat.ReplaceAllString(backend, "")
+	backendRegex := regexp.MustCompile(`https?://`)
+	backendWithoutProtocol := backendRegex.ReplaceAllString(backend, "")
+	logger := simplelogger.New("wire-go/apiclient", true, true)
 
 	return &APIClient{
 		AccessToken: "",
@@ -143,6 +150,7 @@ func New(backend, email, password string, timeout int) *APIClient {
 		Email:       email,
 		Password:    password,
 		Timeout:     timeout,
+		Logger:      logger,
 	}
 }
 
@@ -235,7 +243,7 @@ func (apiClient *APIClient) Login(permanent bool) (*TokenData, error) {
 
 	apiClient.AccessToken = fmt.Sprintf("%s %s", tokenData.TokenType, tokenData.AccessToken)
 
-	fmt.Printf("Got access token: \"%s\"\n", util.Shorten(apiClient.AccessToken, 20))
+	fmt.Printf("Got access token: \"%s\"\n", utils.Shorten(apiClient.AccessToken, 20))
 
 	return tokenData, nil
 }
@@ -260,14 +268,14 @@ func (apiClient *APIClient) request(method, urlPath string, payload interface{},
 
 	if apiClient.AccessToken != "" {
 		request.Header.Set("Authorization", apiClient.AccessToken)
-		fmt.Printf("Setting access token: \"%s\"\n", util.Shorten(apiClient.AccessToken, 20))
+		fmt.Printf("Setting access token: \"%s\"\n", utils.Shorten(apiClient.AccessToken, 20))
 	} else if loginNeeded == true {
 		return nil, errors.New("No access token saved. Not logged in?")
 	}
 
 	if apiClient.Cookie != nil {
 		request.AddCookie(apiClient.Cookie)
-		fmt.Printf("Setting cookie: \"%s\"\n", util.Shorten(apiClient.Cookie.String(), 20))
+		fmt.Printf("Setting cookie: \"%s\"\n", utils.Shorten(apiClient.Cookie.String(), 20))
 	} else if loginNeeded == true {
 		return nil, errors.New("No zuid cookie saved. Not logged in?")
 	}
@@ -290,7 +298,7 @@ func (apiClient *APIClient) request(method, urlPath string, payload interface{},
 
 	for _, cookie := range response.Cookies() {
 		if cookie.Name == "zuid" {
-			fmt.Printf("Got cookie: \"%s\"\n", util.Shorten(cookie.String(), 20))
+			fmt.Printf("Got cookie: \"%s\"\n", utils.Shorten(cookie.String(), 20))
 			apiClient.Cookie = cookie
 			break
 		}

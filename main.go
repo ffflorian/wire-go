@@ -19,61 +19,56 @@ package main
 
 import (
 	"fmt"
-	"os"
 
+	"github.com/ffflorian/go-tools/simplelogger"
 	"github.com/ffflorian/wire-go/apiclient"
 	"github.com/ffflorian/wire-go/util"
 	"github.com/simonleung8/flags"
 )
 
-const version = "0.0.1"
+const (
+	description = "A Wire CLI."
+	name        = "wire-go"
+	version     = "0.0.1"
+)
+
+var (
+	logger = simplelogger.New(name, false, true)
+	utils  = util.New(name, version, description)
+)
 
 func main() {
-	flagContext := flags.New()
+	utils.CheckFlags()
 
-	flagContext.NewStringFlag("backend", "b", "specify the Wire backend URL (default: \"staging-nginz-https.zinfra.io\"")
-	flagContext.NewStringFlag("email", "e", "specify your Wire email address")
-	flagContext.NewStringFlag("password", "p", "specify your Wire password")
-	flagContext.NewBoolFlag("version", "v", "output the version number")
-	flagContext.NewBoolFlag("help", "h", "display this help")
+	email := utils.FlagContext.String("e")
+	backend := utils.FlagContext.String("b")
+	password := utils.FlagContext.String("p")
 
-	parseError := flagContext.Parse(os.Args...)
-	util.CheckError(parseError)
-
-	if flagContext.IsSet("h") || flagContext.IsSet("help") {
-		showUsage(flagContext)
-		os.Exit(0)
+	if utils.FlagContext.IsSet("h") {
+		utils.LogAndExit(utils.GetUsage())
 	}
 
-	if flagContext.IsSet("v") || flagContext.IsSet("version") {
-		fmt.Println(version)
-		os.Exit(0)
+	if utils.FlagContext.IsSet("v") || utils.FlagContext.IsSet("version") {
+		utils.LogAndExit(version)
 	}
-
-	email := flagContext.String("e")
-	backend := flagContext.String("b")
-	password := flagContext.String("p")
 
 	if email == "" {
-		fmt.Println("No email set.")
-		os.Exit(1)
+		utils.LogAndExit("No email set.")
 	}
 
 	if backend == "" {
-		fmt.Println("No backend set.")
-		os.Exit(1)
+		utils.LogAndExit("No backend set.")
 	}
 
 	if password == "" {
-		fmt.Println("No password set.")
-		os.Exit(1)
+		utils.LogAndExit("No password set.")
 	}
 
 	client := apiclient.New(backend, email, password, 10000)
 
 	var foundCommand = false
 
-	for _, arg := range flagContext.Args() {
+	for _, arg := range utils.FlagContext.Args() {
 		if arg == "delete-all-clients" {
 			deleteAllClients(client)
 			foundCommand = true
@@ -82,7 +77,7 @@ func main() {
 	}
 
 	if foundCommand == false {
-		showUsage(flagContext)
+		utils.LogAndExit(utils.GetUsage())
 	}
 }
 
@@ -100,17 +95,17 @@ func deleteAllClients(client *apiclient.APIClient) {
 	fmt.Println("Logging in ...")
 
 	_, loginError := client.Login(false)
-	util.CheckError(loginError)
+	utils.CheckError(loginError, false)
 
 	allClients, allClientsError := client.GetAllClients()
-	util.CheckError(allClientsError)
+	utils.CheckError(allClientsError, false)
 
-	fmt.Printf("Found %d %s.\n", len(*allClients), util.Pluralize("client", "s", len(*allClients)))
+	fmt.Printf("Found %d %s.\n", len(*allClients), utils.Pluralize("client", "s", len(*allClients)))
 
 	for _, userClient := range *allClients {
 		fmt.Printf("Deleting client with ID \"%s\" ...\n", userClient.ID)
 		deleteError := client.DeleteClient(userClient.ID)
 
-		util.CheckError(deleteError)
+		utils.CheckError(deleteError, false)
 	}
 }

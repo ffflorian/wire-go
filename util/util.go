@@ -20,10 +20,64 @@ package util
 import (
 	"fmt"
 	"os"
+
+	"github.com/simonleung8/flags"
 )
 
+// Util is a configuration struct for the util
+type Util struct {
+	Description string
+	FlagContext flags.FlagContext
+	Name        string
+	Version     string
+}
+
+// New returns a new instance of Util
+func New(name string, version string, description string) *Util {
+	flagContext := flags.New()
+
+	return &Util{
+		Description: description,
+		FlagContext: flagContext,
+		Name:        name,
+		Version:     version,
+	}
+}
+
+// CheckFlags checks which command line flags are set
+func (util *Util) CheckFlags() {
+	util.FlagContext.NewStringFlag("backend", "b", "specify the Wire backend URL (default: \"staging-nginz-https.zinfra.io\")")
+	util.FlagContext.NewStringFlag("email", "e", "specify your Wire email address")
+	util.FlagContext.NewStringFlag("password", "p", "specify your Wire password")
+	util.FlagContext.NewBoolFlag("version", "v", "output the version number")
+	util.FlagContext.NewBoolFlag("help", "h", "display this help")
+
+	parseError := util.FlagContext.Parse(os.Args...)
+	util.CheckError(parseError, false)
+}
+
+// GetUsage returns the usage text
+func (util *Util) GetUsage() string {
+	return fmt.Sprintf(
+		`%s
+
+Usage:
+  %s [options] [directory]
+
+Options:
+%s
+
+Commands:
+%s`,
+		util.Description,
+		util.Name,
+		util.FlagContext.ShowUsage(2),
+		util.getCommands(),
+	)
+}
+
 // Pluralize adds a postfix to a string
-func Pluralize(text, postfix string, times int) string {
+func (util *Util) Pluralize(text, postfix string, times int) string {
 	if times == 1 {
 		return text
 	}
@@ -31,13 +85,27 @@ func Pluralize(text, postfix string, times int) string {
 }
 
 // Shorten returns a string with a given length and adds an ellipsis
-func Shorten(text string, length int) string {
+func (util *Util) Shorten(text string, length int) string {
 	return fmt.Sprintf("%s...", text[:length])
 }
 
-func CheckError(err error) {
+// CheckError checks the error and if it exists, exits with exit code 1
+func (util *Util) CheckError(err error, printUsage bool) {
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "Error:", err)
+		if printUsage {
+			fmt.Fprintln(os.Stderr, util.GetUsage())
+		}
 		os.Exit(1)
 	}
+}
+
+// LogAndExit logs one or more messages and exits with exit code 0
+func (util *Util) LogAndExit(messages ...interface{}) {
+	fmt.Println(messages...)
+	os.Exit(0)
+}
+
+func (util *Util) getCommands() string {
+	return "  delete-all-clients"
 }
