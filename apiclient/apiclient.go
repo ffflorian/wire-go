@@ -22,7 +22,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -35,7 +34,7 @@ import (
 type APIClient struct {
 	AccessToken string
 	Backend     string
-	Cookies     []*http.Cookie
+	Cookie      *http.Cookie
 	Email       string
 	Password    string
 	Timeout     int
@@ -131,14 +130,13 @@ var methods = struct {
 func New(backend, email, password string, timeout int) *APIClient {
 	pat := regexp.MustCompile(`https?://`)
 	backendWithoutProtocol := pat.ReplaceAllString(backend, "")
-	var cookies []*http.Cookie
 
 	return &APIClient{
-		Backend:  backendWithoutProtocol,
-		Cookies:  cookies,
-		Email:    email,
-		Password: password,
-		Timeout:  timeout,
+		AccessToken: "",
+		Backend:     backendWithoutProtocol,
+		Email:       email,
+		Password:    password,
+		Timeout:     timeout,
 	}
 }
 
@@ -146,7 +144,7 @@ func New(backend, email, password string, timeout int) *APIClient {
 func (apiClient *APIClient) DeleteClient(clientID string) error {
 	urlPath := apiClient.buildURL(paths.CLIENTS)
 
-	_, requestError := apiClient.request(methods.DELETE, urlPath, nil)
+	_, requestError := apiClient.request(methods.DELETE, urlPath, nil, true)
 	if requestError != nil {
 		return requestError
 	}
@@ -158,7 +156,7 @@ func (apiClient *APIClient) DeleteClient(clientID string) error {
 func (apiClient *APIClient) GetClient(userID, clientID string) (*[]byte, error) {
 	urlPath := apiClient.buildURL(paths.CLIENTS, clientID)
 
-	clients, requestError := apiClient.request(methods.GET, urlPath, nil)
+	clients, requestError := apiClient.request(methods.GET, urlPath, nil, true)
 	if requestError != nil {
 		return nil, requestError
 	}
@@ -168,9 +166,13 @@ func (apiClient *APIClient) GetClient(userID, clientID string) (*[]byte, error) 
 
 // GetAllClients gets all clients of the current user
 func (apiClient *APIClient) GetAllClients() (*[]RegisteredClient, error) {
+	if apiClient.AccessToken == "" {
+		return nil, errors.New("Not logged in yet")
+	}
+
 	urlPath := apiClient.buildURL(paths.CLIENTS)
 
-	data, requestError := apiClient.request(methods.GET, urlPath, nil)
+	data, requestError := apiClient.request(methods.GET, urlPath, nil, true)
 	if requestError != nil {
 		return nil, requestError
 	}
@@ -200,10 +202,8 @@ func (apiClient *APIClient) Login(permanent bool) (*TokenData, error) {
 		Email:      apiClient.Email,
 		Password:   apiClient.Password,
 	}
-	payloadBuf := new(bytes.Buffer)
-	json.NewEncoder(payloadBuf).Encode(loginData)
 
-	data, requestError := apiClient.request(methods.POST, urlPath, payloadBuf)
+	data, requestError := apiClient.request(methods.POST, urlPath, loginData, false)
 	if requestError != nil {
 		return nil, requestError
 	}
@@ -228,14 +228,29 @@ func (apiClient *APIClient) buildURL(fragments ...string) string {
 	return URL.String()
 }
 
-func (apiClient *APIClient) request(method, urlPath string, payload io.Reader) (*[]byte, error) {
+func (apiClient *APIClient) request(method, urlPath string, payload interface{}, loginNeeded bool) (*[]byte, error) {
 	timeout := time.Duration(apiClient.Timeout) * time.Millisecond
-	request, _ := http.NewRequest(method, urlPath, payload)
+
+	if apiClient.AccessToken != "" {
+
+	} else if loginNeeded == true {
+		return nil, errors.New("No access token saved. Not logged in?")
+	}
+
+	var payloadBuf *bytes.Buffer = nil
+
+	if payload != nil {
+		payloadBuf = new(bytes.Buffer)
+		json.NewEncoder(payloadBuf).Encode(payload)
+	}
+
+	request, _ := http.NewRequest(method, urlPath, payloadBuf)
 	request.Header.Set("Content-Type", "application/json")
 
-	for _, cookie := range apiClient.Cookies {
-		fmt.Printf("Setting a cookie named \"%s\"\n", cookie.Name)
-		request.AddCookie(cookie)
+	if apiClient.Cookie != nil {
+		request.AddCookie(apiClient.Cookie)
+	} else if loginNeeded == true {
+		return nil, errors.New("No zuid cookie saved. Not logged in?")
 	}
 
 	client := &http.Client{Timeout: timeout}
@@ -255,10 +270,12 @@ func (apiClient *APIClient) request(method, urlPath string, payload io.Reader) (
 	}
 
 	for _, cookie := range response.Cookies() {
-		fmt.Printf("Found a cookie named \"%s\"\n", cookie.Name)
+		if cookie.Name == "zuid" {
+			fmt.Println("Got the zuid cookie")
+			apiClient.Cookie = cookie
+			break
+		}
 	}
-
-	apiClient.Cookies = response.Cookies()
 
 	buffer, readError := ioutil.ReadAll(response.Body)
 	if readError != nil {
