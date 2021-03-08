@@ -235,6 +235,8 @@ func (apiClient *APIClient) Login(permanent bool) (*TokenData, error) {
 
 	apiClient.AccessToken = fmt.Sprintf("%s %s", tokenData.TokenType, tokenData.AccessToken)
 
+	fmt.Printf("Got access token: \"%s\"\n", util.Shorten(apiClient.AccessToken, 20))
+
 	return tokenData, nil
 }
 
@@ -288,7 +290,7 @@ func (apiClient *APIClient) request(method, urlPath string, payload interface{},
 
 	for _, cookie := range response.Cookies() {
 		if cookie.Name == "zuid" {
-			fmt.Printf("Got the zuid cookie: %s\n", util.Shorten(cookie.String(), 20))
+			fmt.Printf("Got cookie: \"%s\"\n", util.Shorten(cookie.String(), 20))
 			apiClient.Cookie = cookie
 			break
 		}
