@@ -54,23 +54,27 @@ type LoginData struct {
 	Password string `json:"password"`
 }
 
+// ClientClassification defines the type of client
 type ClientClassification struct {
-	DESKTOP    string
-	LEGAL_HOLD string
-	PHONE      string
-	TABLET     string
+	Desktop   string `json:"DESKTOP"`
+	LegalHold string `json:"LEGAL_HOLD"`
+	Phone     string `json:"PHONE"`
+	Tablet    string `json:"TABLET"`
 }
 
+// PublicClient defines a client of another user
 type PublicClient struct {
 	Class ClientClassification `json:"class"`
 	ID    string               `json:"id"`
 }
 
+// ClientType defines the type of a client
 type ClientType struct {
-	PERMANENT string
-	TEMPORARY string
+	Permanent string `json:"PERMANENT"`
+	Temporary string `json:"TEMPORARY"`
 }
 
+// Location defines the location of a client
 type Location struct {
 	lat int
 	lon int
@@ -89,31 +93,28 @@ type AddedClient struct {
 	Type ClientType `json:"type"`
 }
 
+// RegisteredClient defines the client of the current user
 type RegisteredClient struct {
 	AddedClient
 	/** The cookie label */
 	Cookie string `json:"cookie"`
 }
 
-type backendPaths struct {
+var paths = struct {
 	CLIENTS string
 	LOGIN   string
 	USERS   string
-}
-
-var paths = &backendPaths{
+}{
 	CLIENTS: "clients",
 	LOGIN:   "login",
 	USERS:   "users",
 }
 
-type httpMethods struct {
+var methods = struct {
 	GET    string
 	POST   string
 	DELETE string
-}
-
-var methods = &httpMethods{
+}{
 	GET:    "GET",
 	POST:   "POST",
 	DELETE: "DELETE",

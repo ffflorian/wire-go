@@ -66,7 +66,7 @@ func main() {
 		fmt.Printf("Login error: %s\n", loginError)
 	}
 
- fmt.Printf("Login Data: %s\n", loginData)
+	fmt.Printf("AccessToken: %s\n", loginData.AccessToken)
 }
 
 func checkError(err error) {
