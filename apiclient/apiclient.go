@@ -33,11 +33,12 @@ import (
 
 // APIClient is a configuration struct for the APIClient
 type APIClient struct {
-	Backend  string
-	Cookies  []*http.Cookie
-	Email    string
-	Password string
-	Timeout  int
+	AccessToken string
+	Backend     string
+	Cookies     []*http.Cookie
+	Email       string
+	Password    string
+	Timeout     int
 }
 
 // TokenData defines the data returned by the server after logging in
@@ -50,8 +51,9 @@ type TokenData struct {
 
 // LoginData defines the data sent to the server to log in
 type LoginData struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
+	ClientType string `json:"clientType"`
+	Email      string `json:"email"`
+	Password   string `json:"password"`
 }
 
 // ClientClassification defines the type of client
@@ -72,6 +74,11 @@ type PublicClient struct {
 type ClientType struct {
 	Permanent string `json:"PERMANENT"`
 	Temporary string `json:"TEMPORARY"`
+}
+
+var clientTypes = &ClientType{
+	Permanent: "PERMANENT",
+	Temporary: "TEMPORARY",
 }
 
 // Location defines the location of a client
@@ -121,7 +128,7 @@ var methods = struct {
 }
 
 // New returns a new instance of the APIClient
-func New(backend string, email string, password string, timeout int) *APIClient {
+func New(backend, email, password string, timeout int) *APIClient {
 	pat := regexp.MustCompile(`https?://`)
 	backendWithoutProtocol := pat.ReplaceAllString(backend, "")
 	var cookies []*http.Cookie
@@ -180,10 +187,18 @@ func (apiClient *APIClient) GetAllClients() (*[]RegisteredClient, error) {
 
 // Login logs the user in
 func (apiClient *APIClient) Login(permanent bool) (*TokenData, error) {
+
+	var clientType = clientTypes.Temporary
+
+	if permanent == true {
+		clientType = clientTypes.Permanent
+	}
+
 	urlPath := apiClient.buildURL(paths.LOGIN)
 	loginData := &LoginData{
-		Email:    apiClient.Email,
-		Password: apiClient.Password,
+		ClientType: clientType,
+		Email:      apiClient.Email,
+		Password:   apiClient.Password,
 	}
 	payloadBuf := new(bytes.Buffer)
 	json.NewEncoder(payloadBuf).Encode(loginData)
@@ -202,6 +217,8 @@ func (apiClient *APIClient) Login(permanent bool) (*TokenData, error) {
 		return nil, unmarshalError
 	}
 
+	apiClient.AccessToken = tokenData.AccessToken
+
 	return tokenData, nil
 }
 
@@ -211,7 +228,7 @@ func (apiClient *APIClient) buildURL(fragments ...string) string {
 	return URL.String()
 }
 
-func (apiClient *APIClient) request(method string, urlPath string, payload io.Reader) (*[]byte, error) {
+func (apiClient *APIClient) request(method, urlPath string, payload io.Reader) (*[]byte, error) {
 	timeout := time.Duration(apiClient.Timeout) * time.Millisecond
 	request, _ := http.NewRequest(method, urlPath, payload)
 	request.Header.Set("Content-Type", "application/json")
