@@ -61,12 +61,21 @@ func main() {
 
 	client := apiclient.New(backend, email, password, 10000)
 
-	loginData, loginError := client.Login(false)
+	_, loginError := client.Login(false)
 	if loginError != nil {
 		fmt.Printf("Login error: %s\n", loginError)
+		os.Exit(1)
 	}
 
-	fmt.Printf("AccessToken: %s\n", loginData.AccessToken)
+	allClients, allClientsError := client.GetAllClients()
+	if allClientsError != nil {
+		fmt.Printf("Error while trying to get all clients: %s\n", loginError)
+		os.Exit(1)
+	}
+
+	for _, client := range *allClients {
+		fmt.Printf("Found client with ID \"%s\"\n", client.ID)
+	}
 }
 
 func checkError(err error) {

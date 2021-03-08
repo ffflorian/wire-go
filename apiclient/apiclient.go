@@ -65,8 +65,8 @@ type ClientClassification struct {
 
 // PublicClient defines a client of another user
 type PublicClient struct {
-	Class ClientClassification `json:"class"`
-	ID    string               `json:"id"`
+	Class string `json:"class"`
+	ID    string `json:"id"`
 }
 
 // ClientType defines the type of a client
@@ -95,8 +95,8 @@ type AddedClient struct {
 	Location Location `json:"location"`
 	Model    string   `json:"model"`
 	/** An ISO 8601 Date string */
-	Time string     `json:"time"`
-	Type ClientType `json:"type"`
+	Time string `json:"time"`
+	Type string `json:"type"`
 }
 
 // RegisteredClient defines the client of the current user
@@ -217,7 +217,7 @@ func (apiClient *APIClient) Login(permanent bool) (*TokenData, error) {
 		return nil, unmarshalError
 	}
 
-	apiClient.AccessToken = tokenData.AccessToken
+	apiClient.AccessToken = fmt.Sprintf("%s %s", tokenData.TokenType, tokenData.AccessToken)
 
 	return tokenData, nil
 }
@@ -231,24 +231,25 @@ func (apiClient *APIClient) buildURL(fragments ...string) string {
 func (apiClient *APIClient) request(method, urlPath string, payload interface{}, loginNeeded bool) (*[]byte, error) {
 	timeout := time.Duration(apiClient.Timeout) * time.Millisecond
 
-	if apiClient.AccessToken != "" {
-
-	} else if loginNeeded == true {
-		return nil, errors.New("No access token saved. Not logged in?")
-	}
-
-	var payloadBuf *bytes.Buffer = nil
+	payloadBuf := new(bytes.Buffer)
 
 	if payload != nil {
-		payloadBuf = new(bytes.Buffer)
 		json.NewEncoder(payloadBuf).Encode(payload)
 	}
 
 	request, _ := http.NewRequest(method, urlPath, payloadBuf)
 	request.Header.Set("Content-Type", "application/json")
 
+	if apiClient.AccessToken != "" {
+		request.Header.Set("Authorization", apiClient.AccessToken)
+		fmt.Printf("Setting access token: \"%s\"\n", apiClient.AccessToken)
+	} else if loginNeeded == true {
+		return nil, errors.New("No access token saved. Not logged in?")
+	}
+
 	if apiClient.Cookie != nil {
 		request.AddCookie(apiClient.Cookie)
+		fmt.Printf("Setting cookie: \"%s\"\n", apiClient.Cookie)
 	} else if loginNeeded == true {
 		return nil, errors.New("No zuid cookie saved. Not logged in?")
 	}
