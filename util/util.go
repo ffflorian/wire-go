@@ -17,7 +17,10 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 package util
 
-import "fmt"
+import (
+	"fmt"
+	"os"
+)
 
 // Pluralize adds a postfix to a string
 func Pluralize(text, postfix string, times int) string {
@@ -30,4 +33,11 @@ func Pluralize(text, postfix string, times int) string {
 // Shorten returns a string with a given length and adds an ellipsis
 func Shorten(text string, length int) string {
 	return fmt.Sprintf("%s...", text[:length])
+}
+
+func CheckError(err error) {
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Error:", err)
+		os.Exit(1)
+	}
 }

@@ -26,16 +26,28 @@ import (
 	"github.com/simonleung8/flags"
 )
 
+const version = "0.0.1"
+
 func main() {
 	flagContext := flags.New()
 
-	flagContext.NewStringFlag("email", "e", "email")
-	flagContext.NewStringFlag("backend", "b", "backend (default: \"staging-nginz-https.zinfra.io\"")
-	flagContext.NewStringFlag("password", "p", "password")
+	flagContext.NewStringFlag("backend", "b", "specify the Wire backend URL (default: \"staging-nginz-https.zinfra.io\"")
+	flagContext.NewStringFlag("email", "e", "specify your Wire email address")
+	flagContext.NewStringFlag("password", "p", "specify your Wire password")
+	flagContext.NewBoolFlag("version", "v", "output the version number")
+	flagContext.NewBoolFlag("help", "h", "display this help")
 
 	parseError := flagContext.Parse(os.Args...)
-	if parseError != nil {
-		fmt.Printf("Flag parse error: %s\n", parseError)
+	util.CheckError(parseError)
+
+	if flagContext.IsSet("h") || flagContext.IsSet("help") {
+		showUsage(flagContext)
+		os.Exit(0)
+	}
+
+	if flagContext.IsSet("v") || flagContext.IsSet("version") {
+		fmt.Println(version)
+		os.Exit(0)
 	}
 
 	email := flagContext.String("e")
@@ -57,34 +69,41 @@ func main() {
 		os.Exit(1)
 	}
 
-	// fmt.Println("Deleting all clients ...")
-	fmt.Println("Logging in ...")
-
 	client := apiclient.New(backend, email, password, 10000)
 
-	DeleteAllClients(client)
-}
+	var foundCommand = false
 
-func checkError(err error) {
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "Error:", err)
-		os.Exit(1)
+	for _, arg := range flagContext.Args() {
+		if arg == "delete-all-clients" {
+			deleteAllClients(client)
+			foundCommand = true
+			break
+		}
+	}
+
+	if foundCommand == false {
+		showUsage(flagContext)
 	}
 }
 
-// DeleteAllClients deletes all clients of the current user
-func DeleteAllClients(client *apiclient.APIClient) {
+func showUsage(flagContext flags.FlagContext) {
+	var header = `Usage: wire-cli [options] [command]
+
+A Wire CLI.
+
+Options:`
+
+	fmt.Printf("%s\n%s\n", header, flagContext.ShowUsage(2))
+}
+
+func deleteAllClients(client *apiclient.APIClient) {
+	fmt.Println("Logging in ...")
+
 	_, loginError := client.Login(false)
-	if loginError != nil {
-		fmt.Printf("Login error: %s\n", loginError)
-		os.Exit(1)
-	}
+	util.CheckError(loginError)
 
 	allClients, allClientsError := client.GetAllClients()
-	if allClientsError != nil {
-		fmt.Printf("Error while trying to get all clients: %s\n", loginError)
-		os.Exit(1)
-	}
+	util.CheckError(allClientsError)
 
 	fmt.Printf("Found %d %s.\n", len(*allClients), util.Pluralize("client", "s", len(*allClients)))
 
@@ -92,9 +111,6 @@ func DeleteAllClients(client *apiclient.APIClient) {
 		fmt.Printf("Deleting client with ID \"%s\" ...\n", userClient.ID)
 		deleteError := client.DeleteClient(userClient.ID)
 
-		if deleteError != nil {
-			fmt.Printf("Error while trying to delete client with ID \"%s\": %s\n", userClient.ID, deleteError)
-			os.Exit(1)
-		}
+		util.CheckError(deleteError)
 	}
 }
