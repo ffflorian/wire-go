@@ -28,6 +28,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/ffflorian/wire-go/util"
 )
 
 // APIClient is a configuration struct for the APIClient
@@ -106,6 +108,10 @@ type RegisteredClient struct {
 	Cookie string `json:"cookie"`
 }
 
+type Password struct {
+	Password string `json:"password"`
+}
+
 var paths = struct {
 	CLIENTS string
 	LOGIN   string
@@ -142,9 +148,17 @@ func New(backend, email, password string, timeout int) *APIClient {
 
 // DeleteClient deletes a client of the current user
 func (apiClient *APIClient) DeleteClient(clientID string) error {
-	urlPath := apiClient.buildURL(paths.CLIENTS)
+	if apiClient.AccessToken == "" {
+		return errors.New("Not logged in yet")
+	}
 
-	_, requestError := apiClient.request(methods.DELETE, urlPath, nil, true)
+	deleteClientData := &Password{
+		Password: apiClient.Password,
+	}
+
+	urlPath := apiClient.buildURL(paths.CLIENTS, clientID)
+
+	_, requestError := apiClient.request(methods.DELETE, urlPath, deleteClientData, true)
 	if requestError != nil {
 		return requestError
 	}
@@ -154,6 +168,10 @@ func (apiClient *APIClient) DeleteClient(clientID string) error {
 
 // GetClient gets a clients of the current user
 func (apiClient *APIClient) GetClient(userID, clientID string) (*[]byte, error) {
+	if apiClient.AccessToken == "" {
+		return nil, errors.New("Not logged in yet")
+	}
+
 	urlPath := apiClient.buildURL(paths.CLIENTS, clientID)
 
 	clients, requestError := apiClient.request(methods.GET, urlPath, nil, true)
@@ -208,8 +226,6 @@ func (apiClient *APIClient) Login(permanent bool) (*TokenData, error) {
 		return nil, requestError
 	}
 
-	fmt.Printf("Received data from server: %s\n", data)
-
 	var tokenData *TokenData
 
 	unmarshalError := json.Unmarshal(*data, &tokenData)
@@ -242,14 +258,14 @@ func (apiClient *APIClient) request(method, urlPath string, payload interface{},
 
 	if apiClient.AccessToken != "" {
 		request.Header.Set("Authorization", apiClient.AccessToken)
-		fmt.Printf("Setting access token: \"%s\"\n", apiClient.AccessToken)
+		fmt.Printf("Setting access token: \"%s\"\n", util.Shorten(apiClient.AccessToken, 20))
 	} else if loginNeeded == true {
 		return nil, errors.New("No access token saved. Not logged in?")
 	}
 
 	if apiClient.Cookie != nil {
 		request.AddCookie(apiClient.Cookie)
-		fmt.Printf("Setting cookie: \"%s\"\n", apiClient.Cookie)
+		fmt.Printf("Setting cookie: \"%s\"\n", util.Shorten(apiClient.Cookie.String(), 20))
 	} else if loginNeeded == true {
 		return nil, errors.New("No zuid cookie saved. Not logged in?")
 	}
@@ -272,7 +288,7 @@ func (apiClient *APIClient) request(method, urlPath string, payload interface{},
 
 	for _, cookie := range response.Cookies() {
 		if cookie.Name == "zuid" {
-			fmt.Println("Got the zuid cookie")
+			fmt.Printf("Got the zuid cookie: %s\n", util.Shorten(cookie.String(), 20))
 			apiClient.Cookie = cookie
 			break
 		}

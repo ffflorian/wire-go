@@ -22,6 +22,7 @@ import (
 	"os"
 
 	"github.com/ffflorian/wire-go/apiclient"
+	"github.com/ffflorian/wire-go/util"
 	"github.com/simonleung8/flags"
 )
 
@@ -61,6 +62,18 @@ func main() {
 
 	client := apiclient.New(backend, email, password, 10000)
 
+	DeleteAllClients(client)
+}
+
+func checkError(err error) {
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Error:", err)
+		os.Exit(1)
+	}
+}
+
+// DeleteAllClients deletes all clients of the current user
+func DeleteAllClients(client *apiclient.APIClient) {
 	_, loginError := client.Login(false)
 	if loginError != nil {
 		fmt.Printf("Login error: %s\n", loginError)
@@ -73,14 +86,15 @@ func main() {
 		os.Exit(1)
 	}
 
-	for _, client := range *allClients {
-		fmt.Printf("Found client with ID \"%s\"\n", client.ID)
-	}
-}
+	fmt.Printf("Found %d %s.\n", len(*allClients), util.Pluralize("client", "s", len(*allClients)))
 
-func checkError(err error) {
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "Error:", err)
-		os.Exit(1)
+	for _, userClient := range *allClients {
+		fmt.Printf("Deleting client with ID \"%s\" ...\n", userClient.ID)
+		deleteError := client.DeleteClient(userClient.ID)
+
+		if deleteError != nil {
+			fmt.Printf("Error while trying to delete client with ID \"%s\": %s\n", userClient.ID, deleteError)
+			os.Exit(1)
+		}
 	}
 }
