@@ -51,6 +51,8 @@ func (util *Util) CheckFlags() {
 	util.FlagContext.NewStringFlag("password", "p", "specify your Wire password")
 	util.FlagContext.NewBoolFlag("version", "v", "output the version number")
 	util.FlagContext.NewBoolFlag("help", "h", "display this help")
+	util.FlagContext.NewStringFlag("client-id", "i", "specify the client's ID (e.g. for setting its label)")
+	util.FlagContext.NewStringFlag("label", "l", "specify the client's new label")
 
 	parseError := util.FlagContext.Parse(os.Args...)
 	util.CheckError(parseError, false)
@@ -66,7 +68,6 @@ Usage:
 
 Options:
 %s
-
 Commands:
 %s`,
 		util.Description,
@@ -107,5 +108,7 @@ func (util *Util) LogAndExit(messages ...interface{}) {
 }
 
 func (util *Util) getCommands() string {
-	return "  delete-all-clients"
+	return `  delete-all-clients
+  set-client-label
+  get-all-clients`
 }

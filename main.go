@@ -18,12 +18,9 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 package main
 
 import (
-	"fmt"
-
 	"github.com/ffflorian/go-tools/simplelogger"
 	"github.com/ffflorian/wire-go/apiclient"
 	"github.com/ffflorian/wire-go/util"
-	"github.com/simonleung8/flags"
 )
 
 const (
@@ -33,8 +30,8 @@ const (
 )
 
 var (
-	logger = simplelogger.New(name, false, true)
 	utils  = util.New(name, version, description)
+	logger = simplelogger.New(name, true, false)
 )
 
 func main() {
@@ -53,24 +50,32 @@ func main() {
 	}
 
 	if email == "" {
-		utils.LogAndExit("No email set.")
+		utils.LogAndExit("Error: No email set.")
 	}
 
 	if backend == "" {
-		utils.LogAndExit("No backend set.")
+		utils.LogAndExit("Error: No backend set.")
 	}
 
 	if password == "" {
-		utils.LogAndExit("No password set.")
+		utils.LogAndExit("Error: No password set.")
 	}
 
-	client := apiclient.New(backend, email, password, 10000)
+	apiClient := apiclient.New(backend, email, password, 10000)
 
 	var foundCommand = false
 
 	for _, arg := range utils.FlagContext.Args() {
 		if arg == "delete-all-clients" {
-			deleteAllClients(client)
+			deleteAllClients(apiClient)
+			foundCommand = true
+			break
+		} else if arg == "set-client-label" {
+			setClientLabel(apiClient)
+			foundCommand = true
+			break
+		} else if arg == "get-all-clients" {
+			getAllClients(apiClient)
 			foundCommand = true
 			break
 		}
@@ -81,31 +86,64 @@ func main() {
 	}
 }
 
-func showUsage(flagContext flags.FlagContext) {
-	var header = `Usage: wire-cli [options] [command]
-
-A Wire CLI.
-
-Options:`
-
-	fmt.Printf("%s\n%s\n", header, flagContext.ShowUsage(2))
-}
-
-func deleteAllClients(client *apiclient.APIClient) {
-	fmt.Println("Logging in ...")
-
-	_, loginError := client.Login(false)
+func deleteAllClients(apiClient *apiclient.APIClient) {
+	_, loginError := apiClient.Login(false)
 	utils.CheckError(loginError, false)
 
-	allClients, allClientsError := client.GetAllClients()
+	allClients, allClientsError := apiClient.GetAllClients()
 	utils.CheckError(allClientsError, false)
 
-	fmt.Printf("Found %d %s.\n", len(*allClients), utils.Pluralize("client", "s", len(*allClients)))
+	logger.Logf("Found %d %s.", len(*allClients), utils.Pluralize("client", "s", len(*allClients)))
 
 	for _, userClient := range *allClients {
-		fmt.Printf("Deleting client with ID \"%s\" ...\n", userClient.ID)
-		deleteError := client.DeleteClient(userClient.ID)
+		deleteError := apiClient.DeleteClient(userClient.ID)
 
 		utils.CheckError(deleteError, false)
 	}
+
+	logoutError := apiClient.Logout()
+	utils.CheckError(logoutError, false)
+}
+
+func setClientLabel(apiClient *apiclient.APIClient) {
+	clientID := utils.FlagContext.String("i")
+
+	if clientID == "" {
+		utils.LogAndExit("Error: No client ID set.")
+	}
+
+	label := utils.FlagContext.String("l")
+
+	if label == "" {
+		utils.LogAndExit("Error: No client label set.")
+	}
+
+	_, loginError := apiClient.Login(false)
+	utils.CheckError(loginError, false)
+
+	var updatedClient = &apiclient.SharedClient{
+		Label: label,
+	}
+
+	apiClient.PutClient(clientID, updatedClient)
+
+	logoutError := apiClient.Logout()
+	utils.CheckError(logoutError, false)
+}
+
+func getAllClients(apiClient *apiclient.APIClient) {
+	_, loginError := apiClient.Login(false)
+	utils.CheckError(loginError, false)
+
+	allClients, allClientsError := apiClient.GetAllClients()
+	utils.CheckError(allClientsError, false)
+
+	logger.Logf("Found %d %s.", len(*allClients), utils.Pluralize("client", "s", len(*allClients)))
+
+	for _, userClient := range *allClients {
+		logger.Log(userClient)
+	}
+
+	logoutError := apiClient.Logout()
+	utils.CheckError(logoutError, false)
 }

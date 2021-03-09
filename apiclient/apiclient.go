@@ -103,6 +103,21 @@ type AddedClient struct {
 	Type string `json:"type"`
 }
 
+// SharedClient defines the base data of a client
+type SharedClient struct {
+	Label   string   `json:"label"`
+	Lastkey PreKey   `json:"lastkey"`
+	Prekeys []PreKey `json:"prekeys"`
+}
+
+// PreKey defines the PreKey needed for the Proteus protocol
+type PreKey struct {
+	/** The PreKey ID */
+	ID int `json:"id"`
+	/** The PreKey data, base64 encoded */
+	Key string `json:"key"`
+}
+
 // RegisteredClient defines the client of the current user
 type RegisteredClient struct {
 	AddedClient
@@ -110,6 +125,7 @@ type RegisteredClient struct {
 	Cookie string `json:"cookie"`
 }
 
+// Password defines the data to update the current user's password
 type Password struct {
 	Password string `json:"password"`
 }
@@ -118,31 +134,37 @@ var paths = struct {
 	CLIENTS string
 	LOGIN   string
 	USERS   string
+	LOGOUT  string
+	ACCESS  string
 }{
 	CLIENTS: "clients",
 	LOGIN:   "login",
 	USERS:   "users",
+	LOGOUT:  "logout",
+	ACCESS:  "access",
 }
 
 var methods = struct {
 	GET    string
 	POST   string
 	DELETE string
+	PUT    string
 }{
 	GET:    "GET",
 	POST:   "POST",
 	DELETE: "DELETE",
+	PUT:    "PUT",
 }
 
 var (
-	utils = util.New("wire-go", "", "")
+	utils  = util.New("wire-go", "", "")
+	logger = simplelogger.New("wire-go/apiclient", true, false)
 )
 
 // New returns a new instance of the APIClient
 func New(backend, email, password string, timeout int) *APIClient {
 	backendRegex := regexp.MustCompile(`https?://`)
 	backendWithoutProtocol := backendRegex.ReplaceAllString(backend, "")
-	logger := simplelogger.New("wire-go/apiclient", true, true)
 
 	return &APIClient{
 		AccessToken: "",
@@ -150,14 +172,15 @@ func New(backend, email, password string, timeout int) *APIClient {
 		Email:       email,
 		Password:    password,
 		Timeout:     timeout,
-		Logger:      logger,
 	}
 }
 
 // DeleteClient deletes a client of the current user
 func (apiClient *APIClient) DeleteClient(clientID string) error {
+	logger.Logf("Deleting client with ID \"%s\" ...", clientID)
+
 	if apiClient.AccessToken == "" {
-		return errors.New("Not logged in yet")
+		return errors.New("No access token found. Not logged in?")
 	}
 
 	deleteClientData := &Password{
@@ -174,26 +197,53 @@ func (apiClient *APIClient) DeleteClient(clientID string) error {
 	return nil
 }
 
-// GetClient gets a clients of the current user
-func (apiClient *APIClient) GetClient(userID, clientID string) (*[]byte, error) {
+// PutClient updates a client of the current user
+func (apiClient *APIClient) PutClient(clientID string, updatedClient *SharedClient) error {
+	logger.Logf("Updating client with ID \"%s\" ...", clientID)
+
 	if apiClient.AccessToken == "" {
-		return nil, errors.New("Not logged in yet")
+		return errors.New("No access token found. Not logged in?")
 	}
 
 	urlPath := apiClient.buildURL(paths.CLIENTS, clientID)
 
-	clients, requestError := apiClient.request(methods.GET, urlPath, nil, true)
+	_, requestError := apiClient.request(methods.PUT, urlPath, updatedClient, true)
+	if requestError != nil {
+		return requestError
+	}
+
+	return nil
+}
+
+// GetClient gets a client of the current user
+func (apiClient *APIClient) GetClient(clientID string) (*RegisteredClient, error) {
+	logger.Logf("Getting client with ID \"%s\" ...", clientID)
+
+	if apiClient.AccessToken == "" {
+		return nil, errors.New("No access token found. Not logged in?")
+	}
+
+	urlPath := apiClient.buildURL(paths.CLIENTS, clientID)
+
+	data, requestError := apiClient.request(methods.GET, urlPath, nil, true)
 	if requestError != nil {
 		return nil, requestError
 	}
 
-	return clients, nil
+	var client *RegisteredClient
+
+	unmarshalError := json.Unmarshal(*data, &client)
+	if unmarshalError != nil {
+		return nil, unmarshalError
+	}
+
+	return client, nil
 }
 
 // GetAllClients gets all clients of the current user
 func (apiClient *APIClient) GetAllClients() (*[]RegisteredClient, error) {
 	if apiClient.AccessToken == "" {
-		return nil, errors.New("Not logged in yet")
+		return nil, errors.New("No access token found. Not logged in?")
 	}
 
 	urlPath := apiClient.buildURL(paths.CLIENTS)
@@ -215,6 +265,7 @@ func (apiClient *APIClient) GetAllClients() (*[]RegisteredClient, error) {
 
 // Login logs the user in
 func (apiClient *APIClient) Login(permanent bool) (*TokenData, error) {
+	logger.Log("Logging in ...")
 
 	var clientType = clientTypes.Temporary
 
@@ -223,6 +274,7 @@ func (apiClient *APIClient) Login(permanent bool) (*TokenData, error) {
 	}
 
 	urlPath := apiClient.buildURL(paths.LOGIN)
+
 	loginData := &LoginData{
 		ClientType: clientType,
 		Email:      apiClient.Email,
@@ -243,9 +295,23 @@ func (apiClient *APIClient) Login(permanent bool) (*TokenData, error) {
 
 	apiClient.AccessToken = fmt.Sprintf("%s %s", tokenData.TokenType, tokenData.AccessToken)
 
-	fmt.Printf("Got access token: \"%s\"\n", utils.Shorten(apiClient.AccessToken, 20))
+	logger.Logf("Got access token: \"%s\"", utils.Shorten(apiClient.AccessToken, 20))
 
 	return tokenData, nil
+}
+
+// Logout logs the user out
+func (apiClient *APIClient) Logout() error {
+	logger.Log("Logging out ...")
+
+	urlPath := apiClient.buildURL(paths.ACCESS, paths.LOGOUT)
+
+	_, requestError := apiClient.request(methods.POST, urlPath, nil, false)
+	if requestError != nil {
+		return requestError
+	}
+
+	return nil
 }
 
 func (apiClient *APIClient) buildURL(fragments ...string) string {
@@ -268,20 +334,20 @@ func (apiClient *APIClient) request(method, urlPath string, payload interface{},
 
 	if apiClient.AccessToken != "" {
 		request.Header.Set("Authorization", apiClient.AccessToken)
-		fmt.Printf("Setting access token: \"%s\"\n", utils.Shorten(apiClient.AccessToken, 20))
+		logger.Logf("Setting access token: \"%s\"", utils.Shorten(apiClient.AccessToken, 20))
 	} else if loginNeeded == true {
 		return nil, errors.New("No access token saved. Not logged in?")
 	}
 
 	if apiClient.Cookie != nil {
 		request.AddCookie(apiClient.Cookie)
-		fmt.Printf("Setting cookie: \"%s\"\n", utils.Shorten(apiClient.Cookie.String(), 20))
+		logger.Logf("Setting cookie: \"%s\"", utils.Shorten(apiClient.Cookie.String(), 20))
 	} else if loginNeeded == true {
 		return nil, errors.New("No zuid cookie saved. Not logged in?")
 	}
 
 	client := &http.Client{Timeout: timeout}
-	fmt.Printf("Sending %s request to \"%s\" with timeout \"%s\" ...\n", request.Method, urlPath, timeout)
+	logger.Logf("Sending %s request to \"%s\" with timeout \"%s\" ...", request.Method, urlPath, timeout)
 
 	response, requestError := client.Do(request)
 	if requestError != nil {
@@ -290,7 +356,7 @@ func (apiClient *APIClient) request(method, urlPath string, payload interface{},
 
 	defer response.Body.Close()
 
-	fmt.Printf("Got response status code \"%d\"\n", response.StatusCode)
+	logger.Logf("Got response status code \"%d\"", response.StatusCode)
 
 	if response.StatusCode != 200 {
 		return nil, errors.New("Invalid response status code")
@@ -298,7 +364,7 @@ func (apiClient *APIClient) request(method, urlPath string, payload interface{},
 
 	for _, cookie := range response.Cookies() {
 		if cookie.Name == "zuid" {
-			fmt.Printf("Got cookie: \"%s\"\n", utils.Shorten(cookie.String(), 20))
+			logger.Logf("Got cookie: \"%s\"", utils.Shorten(cookie.String(), 20))
 			apiClient.Cookie = cookie
 			break
 		}
