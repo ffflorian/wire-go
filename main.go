@@ -54,7 +54,7 @@ func main() {
 	}
 
 	if backend == "" {
-		utils.LogAndExit("Error: No backend set.")
+		backend = "staging-nginz-https.zinfra.io"
 	}
 
 	if password == "" {
