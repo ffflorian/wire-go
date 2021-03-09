@@ -147,3 +147,25 @@ func getAllClients(apiClient *apiclient.APIClient) {
 	logoutError := apiClient.Logout()
 	utils.CheckError(logoutError, false)
 }
+
+func setName(apiClient *apiclient.APIClient) {
+	newName := utils.FlagContext.String("n")
+
+	if newName == "" {
+		utils.LogAndExit("Error: No new name set.")
+	}
+
+	_, loginError := apiClient.Login(false)
+	utils.CheckError(loginError, false)
+
+	var updatedSelf = &apiclient.SelfUpdate{
+		Name: newName,
+	}
+
+	logger.Log("Setting new name ...")
+
+	apiClient.PutSelf(newName, updatedSelf)
+
+	logoutError := apiClient.Logout()
+	utils.CheckError(logoutError, false)
+}

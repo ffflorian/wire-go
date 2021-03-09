@@ -39,17 +39,16 @@ type APIClient struct {
 	Backend     string
 	Cookie      *http.Cookie
 	Email       string
-	Logger      *simplelogger.SimpleLogger
 	Password    string
 	Timeout     int
 }
 
 // TokenData defines the data returned by the server after logging in
 type TokenData struct {
-	ExpiresIn   int    `json:"expires_in"`
 	AccessToken string `json:"access_token"`
-	UserID      string `json:"user"`
+	ExpiresIn   int    `json:"expires_in"`
 	TokenType   string `json:"token_type"`
+	UserID      string `json:"user"`
 }
 
 // LoginData defines the data sent to the server to log in
@@ -130,29 +129,45 @@ type Password struct {
 	Password string `json:"password"`
 }
 
+// UserAsset defines the data of a user's asset
+type UserAsset struct {
+	Key  string `json:"key"`
+	Size string `json:"size"`
+	Type string `json:"type"`
+}
+
+// SelfUpdate defines the data to update the current user
+type SelfUpdate struct {
+	AccentID string      `json:"accent_id"`
+	Assets   []UserAsset `json:"assets"`
+	Name     string      `json:"name"`
+}
+
 var paths = struct {
+	ACCESS  string
 	CLIENTS string
 	LOGIN   string
-	USERS   string
 	LOGOUT  string
-	ACCESS  string
+	SELF    string
+	USERS   string
 }{
+	ACCESS:  "access",
 	CLIENTS: "clients",
 	LOGIN:   "login",
-	USERS:   "users",
 	LOGOUT:  "logout",
-	ACCESS:  "access",
+	SELF:    "self",
+	USERS:   "users",
 }
 
 var methods = struct {
+	DELETE string
 	GET    string
 	POST   string
-	DELETE string
 	PUT    string
 }{
+	DELETE: "DELETE",
 	GET:    "GET",
 	POST:   "POST",
-	DELETE: "DELETE",
 	PUT:    "PUT",
 }
 
@@ -208,6 +223,24 @@ func (apiClient *APIClient) PutClient(clientID string, updatedClient *SharedClie
 	urlPath := apiClient.buildURL(paths.CLIENTS, clientID)
 
 	_, requestError := apiClient.request(methods.PUT, urlPath, updatedClient, true)
+	if requestError != nil {
+		return requestError
+	}
+
+	return nil
+}
+
+// PutSelf updates a client of the current user
+func (apiClient *APIClient) PutSelf(clientID string, updatedSelf *SelfUpdate) error {
+	logger.Log("Updating user ...")
+
+	if apiClient.AccessToken == "" {
+		return errors.New("No access token found. Not logged in?")
+	}
+
+	urlPath := apiClient.buildURL(paths.SELF)
+
+	_, requestError := apiClient.request(methods.PUT, urlPath, updatedSelf, true)
 	if requestError != nil {
 		return requestError
 	}

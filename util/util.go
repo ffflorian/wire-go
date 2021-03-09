@@ -53,6 +53,7 @@ func (util *Util) CheckFlags() {
 	util.FlagContext.NewBoolFlag("help", "h", "display this help")
 	util.FlagContext.NewStringFlag("client-id", "i", "specify the client's ID (e.g. for setting its label)")
 	util.FlagContext.NewStringFlag("label", "l", "specify the client's new label")
+	util.FlagContext.NewStringFlag("new-name", "n", "specify your new name (when updating it)")
 
 	parseError := util.FlagContext.Parse(os.Args...)
 	util.CheckError(parseError, false)
@@ -108,7 +109,9 @@ func (util *Util) LogAndExit(messages ...interface{}) {
 }
 
 func (util *Util) getCommands() string {
-	return `  delete-all-clients
-  set-client-label
-  get-all-clients`
+	return `  delete-all-clients [options]  delete all clients
+  set-client-label [options]    update a client's label
+  reset-password [options]      reset your password
+  get-all-clients [options]     get all clients data
+  set-name [options]            set your name`
 }
