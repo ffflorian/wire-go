@@ -143,33 +143,19 @@ type SelfUpdate struct {
 	Name     string      `json:"name"`
 }
 
-var paths = struct {
-	ACCESS  string
-	CLIENTS string
-	LOGIN   string
-	LOGOUT  string
-	SELF    string
-	USERS   string
-}{
-	ACCESS:  "access",
-	CLIENTS: "clients",
-	LOGIN:   "login",
-	LOGOUT:  "logout",
-	SELF:    "self",
-	USERS:   "users",
-}
+const (
+	PathAccess  = "access"
+	PathClients = "clients"
+	PathLogin   = "login"
+	PathLogout  = "logout"
+	PathSelf    = "self"
+	PathUsers   = "users"
 
-var methods = struct {
-	DELETE string
-	GET    string
-	POST   string
-	PUT    string
-}{
-	DELETE: "DELETE",
-	GET:    "GET",
-	POST:   "POST",
-	PUT:    "PUT",
-}
+	MethodDelete = "DELETE"
+	MethodGet    = "GET"
+	MethodPost   = "POST"
+	MethodPut    = "PUT"
+)
 
 var (
 	utils  = util.New("wire-go", "", "")
@@ -202,9 +188,9 @@ func (apiClient *APIClient) DeleteClient(clientID string) error {
 		Password: apiClient.Password,
 	}
 
-	urlPath := apiClient.buildURL(paths.CLIENTS, clientID)
+	urlPath := apiClient.buildURL(PathClients, clientID)
 
-	_, requestError := apiClient.request(methods.DELETE, urlPath, deleteClientData, true)
+	_, requestError := apiClient.request(MethodDelete, urlPath, deleteClientData, true)
 	if requestError != nil {
 		return requestError
 	}
@@ -220,9 +206,9 @@ func (apiClient *APIClient) PutClient(clientID string, updatedClient *SharedClie
 		return errors.New("No access token found. Not logged in?")
 	}
 
-	urlPath := apiClient.buildURL(paths.CLIENTS, clientID)
+	urlPath := apiClient.buildURL(PathClients, clientID)
 
-	_, requestError := apiClient.request(methods.PUT, urlPath, updatedClient, true)
+	_, requestError := apiClient.request(MethodPut, urlPath, updatedClient, true)
 	if requestError != nil {
 		return requestError
 	}
@@ -238,9 +224,9 @@ func (apiClient *APIClient) PutSelf(clientID string, updatedSelf *SelfUpdate) er
 		return errors.New("No access token found. Not logged in?")
 	}
 
-	urlPath := apiClient.buildURL(paths.SELF)
+	urlPath := apiClient.buildURL(PathSelf)
 
-	_, requestError := apiClient.request(methods.PUT, urlPath, updatedSelf, true)
+	_, requestError := apiClient.request(MethodPut, urlPath, updatedSelf, true)
 	if requestError != nil {
 		return requestError
 	}
@@ -256,9 +242,9 @@ func (apiClient *APIClient) GetClient(clientID string) (*RegisteredClient, error
 		return nil, errors.New("No access token found. Not logged in?")
 	}
 
-	urlPath := apiClient.buildURL(paths.CLIENTS, clientID)
+	urlPath := apiClient.buildURL(PathClients, clientID)
 
-	data, requestError := apiClient.request(methods.GET, urlPath, nil, true)
+	data, requestError := apiClient.request(MethodGet, urlPath, nil, true)
 	if requestError != nil {
 		return nil, requestError
 	}
@@ -279,9 +265,9 @@ func (apiClient *APIClient) GetAllClients() (*[]RegisteredClient, error) {
 		return nil, errors.New("No access token found. Not logged in?")
 	}
 
-	urlPath := apiClient.buildURL(paths.CLIENTS)
+	urlPath := apiClient.buildURL(PathClients)
 
-	data, requestError := apiClient.request(methods.GET, urlPath, nil, true)
+	data, requestError := apiClient.request(MethodGet, urlPath, nil, true)
 	if requestError != nil {
 		return nil, requestError
 	}
@@ -306,7 +292,7 @@ func (apiClient *APIClient) Login(permanent bool) (*TokenData, error) {
 		clientType = clientTypes.Permanent
 	}
 
-	urlPath := apiClient.buildURL(paths.LOGIN)
+	urlPath := apiClient.buildURL(PathLogin)
 
 	loginData := &LoginData{
 		ClientType: clientType,
@@ -314,7 +300,7 @@ func (apiClient *APIClient) Login(permanent bool) (*TokenData, error) {
 		Password:   apiClient.Password,
 	}
 
-	data, requestError := apiClient.request(methods.POST, urlPath, loginData, false)
+	data, requestError := apiClient.request(MethodPost, urlPath, loginData, false)
 	if requestError != nil {
 		return nil, requestError
 	}
@@ -337,9 +323,9 @@ func (apiClient *APIClient) Login(permanent bool) (*TokenData, error) {
 func (apiClient *APIClient) Logout() error {
 	logger.Log("Logging out ...")
 
-	urlPath := apiClient.buildURL(paths.ACCESS, paths.LOGOUT)
+	urlPath := apiClient.buildURL(PathAccess, PathLogout)
 
-	_, requestError := apiClient.request(methods.POST, urlPath, nil, false)
+	_, requestError := apiClient.request(MethodPost, urlPath, nil, false)
 	if requestError != nil {
 		return requestError
 	}
@@ -391,7 +377,7 @@ func (apiClient *APIClient) request(method, urlPath string, payload interface{},
 
 	logger.Logf("Got response status code \"%d\"", response.StatusCode)
 
-	if response.StatusCode != 200 {
+	if response.StatusCode != http.StatusOK {
 		return nil, errors.New("Invalid response status code")
 	}
 
